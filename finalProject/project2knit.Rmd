@@ -1,0 +1,177 @@
+---
+title: "Project 2"
+author: "Matthew Green"
+date: "June 30, 2016"
+output: html_document
+---
+
+# Exectutive Summary
+
+This analysis is for the Statistical Inference class on Coursera that is part of the Johns Hopkins University specialization in Data Science. We'll be performing some exploratory analysis in the ToothGrowth data in R datasets package, then using confidence intervals and hypothesis testing to compare tooth growth by __supp__ and __dose__.
+
+## Initial Set-Up
+
+### Load ToothGrowth Data
+
+```{r}
+
+data(ToothGrowth)
+
+```
+
+### Exploratory Data Analysis
+
+```{r, echo=FALSE}
+
+ToothGrowth$dose <- as.factor(ToothGrowth$dose)
+str(ToothGrowth)
+head(ToothGrowth)
+
+```
+
+### Basic Data Summary
+
+```{r, echo=FALSE}
+
+summary(ToothGrowth)
+
+```
+
+## Comparing Tooth Growth by Supplement Type
+ 
+```{r, echo=FALSE, warning=FALSE}
+
+library(ggplot2)
+
+ggplot(ToothGrowth, aes(factor(supp), len)) +
+  geom_boxplot(aes(fill=supp)) +
+  theme_gray(base_size = 15) + 
+  labs(x = "Supplement Type", fontface = "bold") +
+  labs(y = "Length") +
+  labs(title = "Boxplot of Supplement v Length")
+
+```
+
+```{r}
+
+suppLens <- split(ToothGrowth$len, ToothGrowth$supp)
+sapply(suppLens, mean)
+sapply(suppLens, var)
+
+t.test(sapply(suppLens[1], as.numeric), sapply(suppLens[2], as.numeric),
+       paired=FALSE, var.equal = FALSE)
+ 
+```
+
+The p-value is larger than 0.05, which suggests we accept the null hypothsis that there is no difference when using a supplement type. 
+Also The confidence interval includes 0, implying 0 is reasonable possibility for the true value of the difference.
+
+## Comparing Tooth Growth by Dose
+
+```{r, echo=FALSE, warning=FALSE}
+
+ggplot(ToothGrowth, aes(factor(dose), len)) +
+  geom_boxplot(aes(fill=dose)) +
+  theme_gray(base_size = 15) + 
+  labs(x = "Supplement Type", fontface = "bold") +
+  labs(y = "Length") +
+  labs(title = "Boxplot of Dose v Length")
+
+```
+
+```{r}
+
+doseLens <- split(ToothGrowth$len, ToothGrowth$dose)
+sapply(doseLens, mean)
+sapply(doseLens, var)
+
+t.test(sapply(doseLens[3], as.numeric), sapply(doseLens[2], as.numeric),
+       paired=FALSE, var.equal = FALSE)
+
+```
+
+The p-value is 0, which supports supports the alternate hypothesis that increasing the vitamin-C dose has a positive impact on tooth length. The confidence interval does not include 0 in this case.
+
+## Permutation Test of Tooth Growth by Supplement Type
+
+```{r}e
+
+y         <- ToothGrowth$len
+tGroup     <- as.character(ToothGrowth$supp)
+testStat  <- function(w, g) mean(w[g == "OJ"]) - mean(w[g == "VC"])
+observedStat <- testStat(y, tGroup)
+observedStat
+
+```
+
+The __observedStat__ is the difference of the means of OJ - VC supplements with regards to tooth lengths.
+
+```{r}
+
+permutations <- sapply(1 : 10000, function(i) testStat(y, sample(tGroup)))
+mean(permutations > observedStat)
+
+```
+
+After creating 10000 permutations, we can compare the number of permutations that were greater than the __observedStat__, and take the mean of those values to determine the p-value.
+The p-value is less than 0.05, which supports rejecting the null hypothesis that the means are the same for both groups. It should be noted that this is not a small p-value, and that will be reflected in the histogram below.
+
+```{r, warning=FALSE, echo=FALSE}
+permCI <- mean(permutations) + c(-1, 1) * qt(0.975, 9999) * sd(permutations)
+
+permHist <- ggplot(data.frame(permutations = permutations), aes(x = permutations)) +
+  geom_histogram(breaks=seq(-7, 7, by=1), col="black", fill="blue", alpha = 0.2) +
+  geom_vline(aes(xintercept = observedStat, col="darkgreen"), size=1, show.legend = TRUE) + 
+  scale_colour_manual(name = "Legend", values = c("darkgreen", "red"), labels = c("mean(OJ - VC)", "95% CI")) +
+  theme_gray(base_size = 15) + 
+  labs(x = "Permutations", fontface = "bold") +
+  labs(y = "Count") +
+  labs(title = "Hist of Permutations OJ v VC")
+permHist
+
+```
+
+Looking at the histogram, we can see that the __observedStat__ falls towards the tail end, supporting evidence that the means between the supplements are not equal. As mentioned above, we can see that there are simulations where the sample mean was larger than observed mean, which is why we had a p-value of around .03 instead of 0.
+
+## Permutation Test of Tooth Growth by Dosage
+
+```{r, }
+
+subdata <- ToothGrowth[ToothGrowth$dose %in% c("2", "1"),]
+yd <- subdata$len
+dGroup <- as.character(subdata$dose)
+dtestStat <- function(w, g) mean(w[g == "2"]) - mean(w[g == "1"]) 
+dobservedStat <- dtestStat(yd, dGroup)
+
+```
+
+The __dobservedStat__ is the difference of the means of 2mg - 1mg vitamin-C doses with regards to tooth lengths.
+
+```{r}
+
+dpermutations <- sapply(1 : 10000, function(i) dtestStat(yd, sample(dGroup)))
+mean(dpermutations > dobservedStat)
+
+```
+
+After creating 10000 permutations, we can compare the number of permutations that were greater than the __dobservedStat__, and take the mean of those values to determine the p-value.
+The p-value is esentuially 0, which supports rejecting the null hypothesis that the means are the same for both groups.
+
+```{r, warning=FALSE, echo=FALSE}
+
+dci <- mean(dpermutations) + c(-1, 1) * qt(0.975, 9999) * sd(dpermutations)
+
+dpermHist <- ggplot(data.frame(dpermutations = dpermutations), aes(x = dpermutations)) +
+  geom_histogram(breaks=seq(-7, 7, by=1), col="black", fill="blue", alpha = 0.2) +
+  geom_vline(aes(xintercept = dobservedStat, col="darkgreen"), size=1, show.legend = TRUE) + 
+  geom_vline(aes(xintercept = dci[2], col="red"), size=1, show.legend = TRUE) + 
+  scale_colour_manual(name = "Legend", values = c("darkgreen", "red"), labels = c("mean(2-1)", "95% CI")) +
+  theme_gray(base_size = 15) + 
+  labs(x = "Dose Permutations", fontface = "bold") +
+  labs(y = "Count") +
+  labs(title = "Hist of Dose Permutations 2mg v 1mg")
+dpermHist
+
+```
+
+Looking at the histogram, we can see that the __observedStat__ falls towards the tail end, supporting evidence that the means between the doses are not equal.
